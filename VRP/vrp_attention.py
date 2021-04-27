@@ -6,19 +6,19 @@ class AttentionVRPActor(object):
         self.use_tanh = use_tanh
         self._scope = _scope
 
-        with tf.variable_scope(_scope+_name):
+        with tf.compat.v1.variable_scope(_scope+_name):
             # self.v: is a variable with shape [1 x dim]
-            self.v = tf.get_variable('v',[1,dim],
-                       initializer=tf.contrib.layers.xavier_initializer())
+            self.v = tf.compat.v1.get_variable('v',[1,dim],
+                       initializer=tf.initializers.GlorotUniform())
             self.v = tf.expand_dims(self.v,2)
             
-        self.emb_d = tf.layers.Conv1D(dim,1,_scope=_scope+_name+'/emb_d' ) #conv1d
-        self.emb_ld = tf.layers.Conv1D(dim,1,_scope=_scope+_name+'/emb_ld' ) #conv1d_2
+        self.emb_d = tf.compat.v1.layers.Conv1D(dim,1,_scope=_scope+_name+'/emb_d' ) #conv1d
+        self.emb_ld = tf.compat.v1.layers.Conv1D(dim,1,_scope=_scope+_name+'/emb_ld' ) #conv1d_2
 
-        self.project_d = tf.layers.Conv1D(dim,1,_scope=_scope+_name+'/proj_d' ) #conv1d_1
-        self.project_ld = tf.layers.Conv1D(dim,1,_scope=_scope+_name+'/proj_ld' ) #conv1d_3
-        self.project_query = tf.layers.Dense(dim,_scope=_scope+_name+'/proj_q' ) #
-        self.project_ref = tf.layers.Conv1D(dim,1,_scope=_scope+_name+'/proj_ref' ) #conv1d_4
+        self.project_d = tf.compat.v1.layers.Conv1D(dim,1,_scope=_scope+_name+'/proj_d' ) #conv1d_1
+        self.project_ld = tf.compat.v1.layers.Conv1D(dim,1,_scope=_scope+_name+'/proj_ld' ) #conv1d_3
+        self.project_query = tf.compat.v1.layers.Dense(dim,_scope=_scope+_name+'/proj_q' ) #
+        self.project_ref = tf.compat.v1.layers.Conv1D(dim,1,_scope=_scope+_name+'/proj_ref' ) #conv1d_4
 
 
         self.C = C  # tanh exploration parameter
@@ -82,17 +82,17 @@ class AttentionVRPCritic(object):
         self.use_tanh = use_tanh
         self._scope = _scope
 
-        with tf.variable_scope(_scope+_name):
+        with tf.compat.v1.variable_scope(_scope+_name):
             # self.v: is a variable with shape [1 x dim]
-            self.v = tf.get_variable('v',[1,dim],
-                       initializer=tf.contrib.layers.xavier_initializer())
+            self.v = tf.compat.v1.get_variable('v',[1,dim],
+                       initializer=tf.initializers.GlorotUniform())
             self.v = tf.expand_dims(self.v,2)
             
-        self.emb_d = tf.layers.Conv1D(dim,1,_scope=_scope+_name +'/emb_d') #conv1d
-        self.project_d = tf.layers.Conv1D(dim,1,_scope=_scope+_name +'/proj_d') #conv1d_1
+        self.emb_d = tf.compat.v1.layers.Conv1D(dim,1,_scope=_scope+_name +'/emb_d') #conv1d
+        self.project_d = tf.compat.v1.layers.Conv1D(dim,1,_scope=_scope+_name +'/proj_d') #conv1d_1
         
-        self.project_query = tf.layers.Dense(dim,_scope=_scope+_name +'/proj_q') #
-        self.project_ref = tf.layers.Conv1D(dim,1,_scope=_scope+_name +'/proj_e') #conv1d_2
+        self.project_query = tf.compat.v1.layers.Dense(dim,_scope=_scope+_name +'/proj_q') #
+        self.project_ref = tf.compat.v1.layers.Conv1D(dim,1,_scope=_scope+_name +'/proj_e') #conv1d_2
 
         self.C = C  # tanh exploration parameter
         self.tanh = tf.nn.tanh

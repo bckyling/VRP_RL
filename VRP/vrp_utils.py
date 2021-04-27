@@ -4,6 +4,9 @@ import os
 import warnings
 import collections
 
+tf.compat.v1.disable_eager_execution()
+
+
 
 def create_VRP_dataset(
         n_problems,
@@ -144,7 +147,9 @@ class Env(object):
         self.n_nodes = args['n_nodes']
         self.n_cust = args['n_cust']
         self.input_dim = args['input_dim']
-        self.input_data = tf.placeholder(tf.float32,\
+        self.time_constraint = args['time_constraint']
+        self.steps_taken = 0
+        self.input_data = tf.compat.v1.placeholder(tf.float32,\
             shape=[None,self.n_nodes,self.input_dim])
 
         self.input_pnt = self.input_data[:,:,:2]
@@ -226,6 +231,13 @@ class Env(object):
         # update load
         self.load -= d_sat
 
+        #update steps
+        if((self.time_constraint>0)&(self.steps_taken>=self.time_constraint)):
+            self.load = self.load- d_sat
+            self.steps_taken = 0
+        else:
+            self.steps_taken +=1
+
         # refill the truck -- idx: [10,9,10] -> load_flag: [1 0 1]
         load_flag = tf.squeeze(tf.cast(tf.equal(idx,self.n_cust),tf.float32),1)
         self.load = tf.multiply(self.load,1-load_flag) + load_flag *self.capacity
@@ -246,6 +258,7 @@ class Env(object):
                     demand = self.demand,
                     d_sat = d_sat,
                     mask = self.mask )
+        
 
         return state
 

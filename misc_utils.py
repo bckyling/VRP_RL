@@ -12,6 +12,7 @@ import numpy as np
 import tensorflow as tf
 import numpy as np
 import scipy.misc 
+import scipy
 try:
     from StringIO import StringIO  # Python 2.7
 except ImportError:
@@ -86,16 +87,129 @@ def extract_norm(xVar):
   yGradNorm = xVar.norm() 
   print(yGradNorm)
 
+def toimage(arr, high=255, low=0, cmin=None, cmax=None, pal=None,
+            mode=None, channel_axis=None):
+    """Takes a numpy array and returns a PIL image.
+    This function is only available if Python Imaging Library (PIL) is installed.
+    The mode of the PIL image depends on the array shape and the `pal` and
+    `mode` keywords.
+    For 2-D arrays, if `pal` is a valid (N,3) byte-array giving the RGB values
+    (from 0 to 255) then ``mode='P'``, otherwise ``mode='L'``, unless mode
+    is given as 'F' or 'I' in which case a float and/or integer array is made.
+    .. warning::
+        This function uses `bytescale` under the hood to rescale images to use
+        the full (0, 255) range if ``mode`` is one of ``None, 'L', 'P', 'l'``.
+        It will also cast data for 2-D images to ``uint32`` for ``mode=None``
+        (which is the default).
+    Notes
+    -----
+    For 3-D arrays, the `channel_axis` argument tells which dimension of the
+    array holds the channel data.
+    For 3-D arrays if one of the dimensions is 3, the mode is 'RGB'
+    by default or 'YCbCr' if selected.
+    The numpy array must be either 2 dimensional or 3 dimensional.
+    """
+    data = np.asarray(arr)
+    if np.iscomplexobj(data):
+        raise ValueError("Cannot convert a complex-valued array.")
+    shape = list(data.shape)
+    valid = len(shape) == 2 or ((len(shape) == 3) and
+                                ((3 in shape) or (4 in shape)))
+    if not valid:
+        raise ValueError("'arr' does not have a suitable array shape for "
+                         "any mode.")
+    if len(shape) == 2:
+        shape = (shape[1], shape[0])  # columns show up first
+        if mode == 'F':
+            data32 = data.astype(np.float32)
+            image = Image.frombytes(mode, shape, data32.tostring())
+            return image
+        if mode in [None, 'L', 'P']:
+            bytedata = bytescale(data, high=high, low=low,
+                                 cmin=cmin, cmax=cmax)
+            image = Image.frombytes('L', shape, bytedata.tostring())
+            if pal is not None:
+                image.putpalette(np.asarray(pal, dtype=np.uint8).tostring())
+                # Becomes a mode='P' automagically.
+            elif mode == 'P':  # default gray-scale
+                pal = (np.arange(0, 256, 1, dtype=np.uint8)[:, np.newaxis] *
+                       np.ones((3,), dtype=np.uint8)[np.newaxis, :])
+                image.putpalette(np.asarray(pal, dtype=np.uint8).tostring())
+            return image
+        if mode == '1':  # high input gives threshold for 1
+            bytedata = (data > high)
+            image = Image.frombytes('1', shape, bytedata.tostring())
+            return image
+        if cmin is None:
+            cmin = np.amin(np.ravel(data))
+        if cmax is None:
+            cmax = np.amax(np.ravel(data))
+        data = (data*1.0 - cmin)*(high - low)/(cmax - cmin) + low
+        if mode == 'I':
+            data32 = data.astype(np.uint32)
+            image = Image.frombytes(mode, shape, data32.tostring())
+        else:
+            raise ValueError(_errstr)
+        return image
+
+    # if here then 3-d array with a 3 or a 4 in the shape length.
+    # Check for 3 in datacube shape --- 'RGB' or 'YCbCr'
+    if channel_axis is None:
+        if (3 in shape):
+            ca = np.flatnonzero(np.asarray(shape) == 3)[0]
+        else:
+            ca = np.flatnonzero(np.asarray(shape) == 4)
+            if len(ca):
+                ca = ca[0]
+            else:
+                raise ValueError("Could not find channel dimension.")
+    else:
+        ca = channel_axis
+
+    numch = shape[ca]
+    if numch not in [3, 4]:
+        raise ValueError("Channel axis dimension is not valid.")
+
+    bytedata = bytescale(data, high=high, low=low, cmin=cmin, cmax=cmax)
+    if ca == 2:
+        strdata = bytedata.tostring()
+        shape = (shape[1], shape[0])
+    elif ca == 1:
+        strdata = np.transpose(bytedata, (0, 2, 1)).tostring()
+        shape = (shape[2], shape[0])
+    elif ca == 0:
+        strdata = np.transpose(bytedata, (1, 2, 0)).tostring()
+        shape = (shape[2], shape[1])
+    if mode is None:
+        if numch == 3:
+            mode = 'RGB'
+        else:
+            mode = 'RGBA'
+
+    if mode not in ['RGB', 'RGBA', 'YCbCr', 'CMYK']:
+        raise ValueError(_errstr)
+
+    if mode in ['RGB', 'YCbCr']:
+        if numch != 3:
+            raise ValueError("Invalid array shape for mode.")
+    if mode in ['RGBA', 'CMYK']:
+        if numch != 4:
+            raise ValueError("Invalid array shape for mode.")
+
+    # Here we know data and mode is correct
+    image = Image.frombytes(mode, shape, strdata)
+    return image
+
 # tensorboard logger
 class Logger(object):
     
     def __init__(self, log_dir):
         """Create a summary writer logging to log_dir."""
-        self.writer = tf.summary.FileWriter(log_dir)
+        self.writer = tf.compat.v1.summary.FileWriter(log_dir)
 
     def scalar_summary(self, tag, value, step):
         """Log a scalar variable."""
-        summary = tf.Summary(value=[tf.Summary.Value(tag=tag, simple_value=value)])
+        summary = tf.compat.v1.Summary(value=[tf.compat.v1.Summary.Value(tag=tag, simple_value=value)])
         self.writer.add_summary(summary, step)
 
     def image_summary(self, tag, images, step):
@@ -108,17 +222,17 @@ class Logger(object):
                 s = StringIO()
             except:
                 s = BytesIO()
-            scipy.misc.toimage(img).save(s, format="png")
+            toimage(img).save(s, format="png")
 
             # Create an Image object
-            img_sum = tf.Summary.Image(encoded_image_string=s.getvalue(),
+            img_sum = tf.compat.v1.Summary.Image(encoded_image_string=s.getvalue(),
                                        height=img.shape[0],
                                        width=img.shape[1])
             # Create a Summary value
-            img_summaries.append(tf.Summary.Value(tag='%s/%d' % (tag, i), image=img_sum))
+            img_summaries.append(tf.compat.v1.Summary.Value(tag='%s/%d' % (tag, i), image=img_sum))
 
         # Create and write Summary
-        summary = tf.Summary(value=img_summaries)
+        summary = tf.compat.v1.Summary(value=img_summaries)
         self.writer.add_summary(summary, step)
         
     def histo_summary(self, tag, values, step, bins=1000):
@@ -128,7 +242,7 @@ class Logger(object):
         counts, bin_edges = np.histogram(values, bins=bins)
 
         # Fill the fields of the histogram proto
-        hist = tf.HistogramProto()
+        hist = tf.compat.v1.HistogramProto()
         hist.min = float(np.min(values))
         hist.max = float(np.max(values))
         hist.num = int(np.prod(values.shape))
@@ -145,7 +259,7 @@ class Logger(object):
             hist.bucket.append(c)
 
         # Create and write Summary
-        summary = tf.Summary(value=[tf.Summary.Value(tag=tag, histo=hist)])
+        summary = tf.compat.v1.Summary(value=[tf.compat.v1.Summary.Value(tag=tag, histo=hist)])
         self.writer.add_summary(summary, step)
         self.writer.flush()
 
@@ -158,25 +272,25 @@ def _single_cell(unit_type, num_units, forget_bias, dropout, prt,
     # Cell Type
     if unit_type == "lstm":
         prt.print_out("  LSTM, forget_bias=%g" % forget_bias, new_line=False)
-        single_cell = tf.contrib.rnn.BasicLSTMCell(
+        single_cell = tf.compat.v1.nn.rnn_cell.BasicLSTMCell(
                 num_units,
                 forget_bias=forget_bias)
     elif unit_type == "gru":
         prt.print_out("  GRU", new_line=False)
-        single_cell = tf.contrib.rnn.GRUCell(num_units)
+        single_cell = tf.compat.v1.nn.rnn_cell.GRUCell(num_units)
     else:
         raise ValueError("Unknown unit type %s!" % unit_type)
 
     # Dropout (= 1 - keep_prob)
     if dropout > 0.0:
-        single_cell = tf.contrib.rnn.DropoutWrapper(
+        single_cell = tf.compat.v1.nn.rnn_cell.DropoutWrapper(
                 cell=single_cell, input_keep_prob=(1.0 - dropout))
         prt.print_out("  %s, dropout=%g " %(type(single_cell).__name__, dropout),
                                         new_line=False)
 
     # Residual
     if residual_connection:
-        single_cell = tf.contrib.rnn.ResidualWrapper(single_cell)
+        single_cell = tf.compat.v1.nn.rnn_cell.ResidualWrapper(single_cell)
         prt.print_out("  %s" % type(single_cell).__name__, new_line=False)
 
     # Device Wrapper
@@ -195,7 +309,7 @@ def _cell_list(unit_type, num_units, num_layers, num_residual_layers,
     cell_list = []
     for i in range(num_layers):
         prt.print_out("  cell %d" % i, new_line=False)
-        dropout = dropout if mode == tf.contrib.learn.ModeKeys.TRAIN else 0.0
+        dropout = dropout if mode == tf.estimator.ModeKeys.TRAIN else 0.0
         single_cell = _single_cell(
                 unit_type=unit_type,
                 num_units=num_units,
@@ -250,7 +364,7 @@ def create_rnn_cell(unit_type, num_units, num_layers, num_residual_layers,
     if len(cell_list) == 1:  # Single layer.
         return cell_list[0]
     else:  # Multi layers
-        return tf.contrib.rnn.MultiRNNCell(cell_list)
+        return tf.compat.v1.nn.rnn_cell.MultiRNNCell(cell_list)
 
 def gradient_clip(gradients, params, max_gradient_norm):
     """Clipping gradients of a model."""
@@ -258,7 +372,7 @@ def gradient_clip(gradients, params, max_gradient_norm):
             gradients, max_gradient_norm)
     gradient_norm_summary = [tf.summary.scalar("grad_norm", gradient_norm)]
     gradient_norm_summary.append(
-            tf.summary.scalar("clipped_gradient", tf.global_norm(clipped_gradients)))
+            tf.summary.scalar("clipped_gradient", tf.compat.v1.global_norm(clipped_gradients)))
 
     return clipped_gradients, gradient_norm_summary
 
@@ -274,7 +388,7 @@ def create_or_load_model(model, model_dir, session, out_dir, name):
     else:
         utils.print_out("  created %s model with fresh parameters, time %.2fs." %
                                         (name, time.time() - start_time))
-        session.run(tf.global_variables_initializer())
+        session.run(tf.compat.v1.global_variables_initializer())
 
     global_step = model.global_step.eval(session=session)
     return model, global_step
@@ -290,14 +404,14 @@ def add_summary(summary_writer, global_step, tag, value):
     """Add a new summary to the current summary_writer.
     Useful to log things that are not part of the training graph, e.g., tag=BLEU.
     """
-    summary = tf.Summary(value=[tf.Summary.Value(tag=tag, simple_value=value)])
+    summary = tf.compat.v1.Summary(value=[tf.compat.v1.Summary.Value(tag=tag, simple_value=value)])
     summary_writer.add_summary(summary, global_step)
 
 
 def get_config_proto(log_device_placement=False, allow_soft_placement=True):
     # GPU options:
     # https://www.tensorflow.org/versions/r0.10/how_tos/using_gpu/index.html
-    config_proto = tf.ConfigProto(
+    config_proto = tf.compat.v1.ConfigProto(
             log_device_placement=log_device_placement,
             allow_soft_placement=allow_soft_placement)
     config_proto.gpu_options.allow_growth = True
@@ -311,7 +425,7 @@ def debug_tensor(s, msg=None, summarize=10):
     """Print the shape and value of a tensor at test time. Return a new tensor."""
     if not msg:
         msg = s.name
-    return tf.Print(s, [tf.shape(s), s], msg + " ", summarize=summarize)
+    return tf.compat.v1.Print(s, [tf.shape(s), s], msg + " ", summarize=summarize)
 
 def tf_print(tensor, transform=None):
 
@@ -321,7 +435,7 @@ def tf_print(tensor, transform=None):
         # but adding a transformation of some kind usually makes the output more digestible
         print(x if transform is None else transform(x))
         return x
-    log_op = tf.py_func(print_tensor, [tensor], [tensor.dtype])[0]
+    log_op = tf.compat.v1.py_func(print_tensor, [tensor], [tensor.dtype])[0]
     with tf.control_dependencies([log_op]):
         res = tf.identity(tensor)
 

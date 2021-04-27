@@ -50,7 +50,7 @@ vrp10 = TaskVRP(task_name = 'vrp',
 			  input_dim=3,
 			  n_nodes=11,
 			  n_cust = 10,
-			  decode_len=16,
+			  decode_len=20,
 			  capacity=20,
 			  demand_max=9)
 task_lst['vrp10'] = vrp10
