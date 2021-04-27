@@ -233,7 +233,7 @@ class Env(object):
 
         #update steps
         if((self.time_constraint>0)&(self.steps_taken>=self.time_constraint)):
-            self.load = self.load- d_sat
+            self.load = 0
             self.steps_taken = 0
         else:
             self.steps_taken +=1
