@@ -348,11 +348,12 @@ class RLAgent(object):
                 self.prt.print_out('\nExample test input: {}'.format(example_input))
                 self.prt.print_out('\nExample test output: {}'.format(example_output))
                 self.prt.print_out('\nExample test reward: {} - best: {}'.format(R[0],R_ind0))
-                self.prt.print_out('\nExample best reward: {}'.format(R_val))
+                #self.prt.print_out('\nExample best reward: {}'.format(R_val))
 
         end_time = time.time() - start_time
 
         # Finished going through the iterator dataset.
+        self.prt.print_out('\Best reward: {}'.format(avg_reward))
         self.prt.print_out('\nValidation overall avg_reward: {}'.format(np.mean(avg_reward)) )
         self.prt.print_out('Validation overall reward std: {}'.format(np.sqrt(np.var(avg_reward))) )
 
