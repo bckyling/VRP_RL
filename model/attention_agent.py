@@ -354,8 +354,7 @@ class RLAgent(object):
         end_time = time.time() - start_time
 
         # Finished going through the iterator dataset.
-        self.prt.print_out('\nBest reward: \n')
-        self.prt.print_out('\n{}'.format(reward_array))
+        self.prt.print_out('\nBest reward: {}'.format(reward_array.flatten()))
         self.prt.print_out('\nValidation overall avg_reward: {}'.format(np.mean(avg_reward)) )
         self.prt.print_out('Validation overall reward std: {}'.format(np.sqrt(np.var(avg_reward))) )
 
