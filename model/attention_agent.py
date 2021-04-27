@@ -339,6 +339,7 @@ class RLAgent(object):
             if step % int(self.args['log_interval']) == 0:
                 example_output = []
                 example_input = []
+                violations = []
                 for i in range(self.env.n_nodes):
                     example_input.append(list(batch[0, i, :]))
                 for idx, action in enumerate(actions):
@@ -350,6 +351,17 @@ class RLAgent(object):
                 self.prt.print_out('\nExample test reward: {} - best: {}'.format(R[0],R_ind0))
                 #self.prt.print_out('\nExample best reward: {}'.format(R_val))
                 reward_array = np.array(avg_reward)
+                newlist = [example_input.index(x) for x in example_output]
+                maxcount = 0
+                count = 0
+                for i in newlist:
+                    if(i < max(newlist)):
+                        count += 1
+                    if(i == max(newlist)):
+                        maxcount = max(count, maxcount)
+                        count = 0
+                violations.append(maxcount)
+
 
         end_time = time.time() - start_time
 
@@ -357,6 +369,7 @@ class RLAgent(object):
         self.prt.print_out('\nBest reward: {}'.format(reward_array.flatten()))
         self.prt.print_out('\nValidation overall avg_reward: {}'.format(np.mean(avg_reward)) )
         self.prt.print_out('Validation overall reward std: {}'.format(np.sqrt(np.var(avg_reward))) )
+        self.prt.print_out('\nAverage constraint violations: {}'.format(np.mean(violations)))
 
         self.prt.print_out("Finished evaluation with %d steps in %s." % (step\
                            ,time.strftime("%H:%M:%S", time.gmtime(end_time))))
