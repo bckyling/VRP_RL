@@ -348,7 +348,7 @@ class RLAgent(object):
                 self.prt.print_out('\nExample test input: {}'.format(example_input))
                 self.prt.print_out('\nExample test output: {}'.format(example_output))
                 self.prt.print_out('\nExample test reward: {} - best: {}'.format(R[0],R_ind0))
-                self.prt.print_out('\nExample best reward: {}'.format(min([R[0]])))
+                self.prt.print_out('\nExample best reward: {}'.format(R_val))
 
         end_time = time.time() - start_time
 
